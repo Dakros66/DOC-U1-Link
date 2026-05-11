@@ -10,6 +10,10 @@ It acts as an intelligent bridge that transforms **Bambu Studio `.3mf`** project
 
 ---
 
+<p align="center">
+  <img src="ex1.png" alt="DOC U1 Link Preview" width="500">
+</p>
+
 # 🌟 Key Features
 
 ## 🧠 Smart Data Surgery
