@@ -19,6 +19,8 @@ import posixpath
 import subprocess
 import sys
 
+# Core 3MF parsing logic inspired by bl2u1 by Josua.
+
 # --- GESTIÓN DE RUTAS PARA PYINSTALLER ---
 def resource_path(relative_path):
     """ Obtiene la ruta absoluta al recurso, compatible con el ejecutable compilado """
