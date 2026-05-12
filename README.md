@@ -189,4 +189,4 @@ See the `LICENSE` file for more information.
 
 Developed by **Dakros66**
 
-Acknowledgements / Credits y pon algo como: "A huge thanks to Josua and the [bl2u1](https://github.com/josuanbn/bl2u1) project. The core 3MF conversion logic of this app was heavily inspired by their foundational work."
+Acknowledgements / Credits: "A huge thanks to [bl2u1](https://github.com/josuanbn/bl2u1) project. The core 3MF conversion logic of this app was inspired by their foundational work."
