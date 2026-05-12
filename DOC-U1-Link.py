@@ -1,8 +1,15 @@
+import os
+# Solución para el error de CustomTkinter al usar --windowed
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w")
 import customtkinter as ctk
 from tkinter import filedialog
 import zipfile
 import json
 import os
+import sys
 import platform
 import locale
 import webbrowser
@@ -10,6 +17,16 @@ import re
 import xml.etree.ElementTree as ET
 import posixpath
 import subprocess
+import sys
+
+# --- GESTIÓN DE RUTAS PARA PYINSTALLER ---
+def resource_path(relative_path):
+    """ Obtiene la ruta absoluta al recurso, compatible con el ejecutable compilado """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 # --- SOPORTE DRAG & DROP Y GIF ---
 try:
@@ -26,7 +43,7 @@ except ImportError:
 
 # --- CONFIGURACIÓN DE VERSIÓN Y APP ---
 APP_NAME = "DOC U1 Link"
-APP_VERSION = "v1.4.1"
+APP_VERSION = "v1.0.0"
 GITHUB_URL = "https://github.com/Dakros66/DOC-U1-Link"
 
 # --- CONSTANTES DEL MOTOR ---
@@ -35,7 +52,7 @@ DEFAULT_FILAMENT_PROFILE = 'Snapmaker PLA SnapSpeed @U1'
 FILAMENT_PROFILES_FILE = 'filament_types.3mf'
 GIF_FILENAME = 'esperando.gif'
 
-# --- CONFIGURACIÓN DE ESTILO (RESTORED COLORS) ---
+# --- CONFIGURACIÓN DE ESTILO ---
 ctk.set_appearance_mode("Dark")
 
 SNAPMAKER_TEAL = "#00A396"
@@ -44,7 +61,7 @@ BG_MAIN = "#18181B"
 BG_CARD = "#27272A"      
 TEXT_MUTED = "#A1A1AA"   
 TEXT_MAIN = "#FAFAFA"    
-ACCENT_ORANGE = "#FACC15" # Naranja original para el botón de acción
+ACCENT_ORANGE = "#FACC15" 
 COLOR_SUCCESS = "#10B981"
 COLOR_ERROR = "#EF4444"
 
@@ -140,7 +157,7 @@ class U1SlicerApp(BaseWindow):
 
         self.crear_interfaz()
         
-        if PIL_SUPPORT and os.path.exists(GIF_FILENAME):
+        if PIL_SUPPORT and os.path.exists(resource_path(GIF_FILENAME)):
             self.cargar_gif()
 
         if DND_SUPPORT:
@@ -204,7 +221,7 @@ class U1SlicerApp(BaseWindow):
     def cargar_gif(self):
         try:
             from PIL import Image
-            gif = Image.open(GIF_FILENAME)
+            gif = Image.open(resource_path(GIF_FILENAME))
             w, h = gif.size
             new_h = 120
             new_w = int(new_h * (w/h))
@@ -230,9 +247,10 @@ class U1SlicerApp(BaseWindow):
 
     def load_filament_profiles(self):
         fils = []
+        path_profiles = resource_path(FILAMENT_PROFILES_FILE)
         try:
-            if os.path.exists(FILAMENT_PROFILES_FILE):
-                with zipfile.ZipFile(FILAMENT_PROFILES_FILE, 'r') as z:
+            if os.path.exists(path_profiles):
+                with zipfile.ZipFile(path_profiles, 'r') as z:
                     cfg = json.loads(z.read('Metadata/project_settings.config').decode('utf-8'))
                     for t, sid in zip(cfg.get('filament_type', []), cfg.get('filament_settings_id', [])):
                         fils.append({'type': t, 'settings_id': sid})
@@ -255,8 +273,10 @@ class U1SlicerApp(BaseWindow):
 
         head = ctk.CTkFrame(main, fg_color="transparent")
         head.pack(fill="x", pady=(0, 20))
-        self.logo_label = ctk.CTkLabel(head, text=self.T("title"), font=ctk.CTkFont(size=26, weight="bold"), text_color=SNAPMAKER_TEAL)
+        
+        self.logo_label = ctk.CTkLabel(head, text=self.T("title"), font=ctk.CTkFont(family="Arial Black", size=28, slant="italic"), text_color=SNAPMAKER_TEAL)
         self.logo_label.pack(side="left")
+        
         self.lang_menu = ctk.CTkOptionMenu(head, values=list(LANG_MAP.keys()), command=self.change_language, width=95, fg_color=BG_CARD, button_color=BG_CARD, button_hover_color=SNAPMAKER_TEAL)
         self.lang_menu.set(INV_LANG_MAP[self.current_lang])
         self.lang_menu.pack(side="right")
@@ -293,7 +313,7 @@ class U1SlicerApp(BaseWindow):
         self.chk_quality.grid(row=0, column=0, pady=12, padx=10, sticky="w"); self.chk_quality.select()
         self.chk_strength = ctk.CTkCheckBox(grid, text=self.T("cat_strength"), font=ctk.CTkFont(size=13), fg_color=SNAPMAKER_TEAL, hover_color=SNAPMAKER_TEAL_HOVER)
         self.chk_strength.grid(row=0, column=1, pady=12, padx=10, sticky="w"); self.chk_strength.select()
-        self.chk_support = ctk.CTkCheckBox(grid, text=self.T("cat_support"), font=ctk.CTkFont(size=13), fg_color=SNAPMAKER_TEAL, hover_color=SNAPMAKER_TEAL_HOVER)
+        self.chk_support = ctk.CTkCheckBox(grid, text=self.T("cat_support"), font=ctk.CTkFont(size=13), fg_color=SNAPMAKER_TEAL, hover_color=SNAPMAKER_TEAL_HOVER) 
         self.chk_support.grid(row=0, column=2, pady=12, padx=10, sticky="w"); self.chk_support.select()
         self.chk_adhesion = ctk.CTkCheckBox(grid, text=self.T("cat_adhesion"), font=ctk.CTkFont(size=13), fg_color=SNAPMAKER_TEAL, hover_color=SNAPMAKER_TEAL_HOVER)
         self.chk_adhesion.grid(row=1, column=0, pady=12, padx=10, sticky="w"); self.chk_adhesion.select()
@@ -386,8 +406,11 @@ class U1SlicerApp(BaseWindow):
                     if n.startswith("Config/") or n == 'Metadata/project_settings.config':
                         try: orig.update(json.loads(zin.read(n).decode('utf-8')))
                         except: pass
-                temp = 'u1_template_supports.3mf' if any('enable_support' in str(s) for s in orig.get('different_settings_to_system',[])) else 'u1_template.3mf'
-                with zipfile.ZipFile(temp, 'r') as zt: comb = json.loads(zt.read('Metadata/project_settings.config').decode('utf-8'))
+                
+                temp_name = 'u1_template_supports.3mf' if any('enable_support' in str(s) for s in orig.get('different_settings_to_system',[])) else 'u1_template.3mf'
+                path_template = resource_path(temp_name)
+                
+                with zipfile.ZipFile(path_template, 'r') as zt: comb = json.loads(zt.read('Metadata/project_settings.config').decode('utf-8'))
                 
                 cols, typs = orig.get('filament_colour',[]), orig.get('filament_type',[])
                 new_c = [(c+'FF' if len(c)==7 else c).upper() for c in (cols + ['#FFFFFFFF']*4)[:4]]
