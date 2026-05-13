@@ -1,4 +1,5 @@
 import os
+import sys
 # Solución para el error de CustomTkinter al usar --windowed
 if sys.stdout is None:
     sys.stdout = open(os.devnull, "w")
@@ -8,8 +9,6 @@ import customtkinter as ctk
 from tkinter import filedialog
 import zipfile
 import json
-import os
-import sys
 import platform
 import locale
 import webbrowser
@@ -134,10 +133,14 @@ if DND_SUPPORT:
     class BaseWindow(ctk.CTk, TkinterDnD.DnDWrapper):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            self.TkdndVersion = TkinterDnD._require(self)
+            try:
+                self.TkdndVersion = TkinterDnD._require(self)
+                self._dnd_active = True
+            except RuntimeError:
+                self._dnd_active = False
 else:
     class BaseWindow(ctk.CTk):
-        pass
+        _dnd_active = False
 
 class U1SlicerApp(BaseWindow):
     def __init__(self):
@@ -162,7 +165,7 @@ class U1SlicerApp(BaseWindow):
         if PIL_SUPPORT and os.path.exists(resource_path(GIF_FILENAME)):
             self.cargar_gif()
 
-        if DND_SUPPORT:
+        if self._dnd_active:
             self.drop_target_register(DND_FILES)
             self.dnd_bind('<<Drop>>', self.al_soltar_archivo)
 
