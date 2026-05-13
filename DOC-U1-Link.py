@@ -49,7 +49,7 @@ except ImportError:
 
 # --- CONFIGURACIÓN DE VERSIÓN Y APP ---
 APP_NAME = "DOC U1 Link"
-APP_VERSION = "v1.1.1"
+APP_VERSION = "v1.1.2"
 GITHUB_URL = "https://github.com/Dakros66/DOC-U1-Link"
 GITHUB_API_URL = "https://api.github.com/repos/Dakros66/DOC-U1-Link/releases/latest"
 
@@ -327,8 +327,6 @@ class U1SlicerApp(BaseWindow):
         else:
             res = str(val)
             
-        # Truncado automático si la cadena ocupa más de 45 caracteres 
-        # (Para evitar que la ventana se desborde infinitamente)
         if len(res) > 45:
             res = res[:42] + "..."
         return res
@@ -345,7 +343,9 @@ class U1SlicerApp(BaseWindow):
         modal.title(self.T("whitelist_title"))
         modal.geometry("450x600")
         modal.configure(fg_color=BG_ROOT)
-        modal.attributes('-topmost', True)
+        modal.transient(self) # Modal verdadero
+        modal.grab_set()
+        modal.focus_force()
         
         lbl_title = ctk.CTkLabel(modal, text=self.T("whitelist_title"), font=ctk.CTkFont(size=18, weight="bold"), text_color=ACCENT_TEAL)
         lbl_title.pack(pady=(20, 10))
@@ -367,7 +367,7 @@ class U1SlicerApp(BaseWindow):
             fil_dict['color'] = nuevo_color.upper()
             btn_widget.configure(fg_color=nuevo_color, hover_color=nuevo_color)
 
-    # --- LÓGICA DEL TOOLTIP DINÁMICO AUTO-CALCULABLE ---
+    # --- LÓGICA DEL TOOLTIP MATEMÁTICO ANTI-CORTES ---
     def schedule_tooltip(self, btn, key):
         self.cancel_hide_tooltip()
         if self._active_tooltip_key == key: return
@@ -418,17 +418,14 @@ class U1SlicerApp(BaseWindow):
             if len(diff_params) > max_items:
                 ctk.CTkLabel(self.tooltip_content, text=self.T("tt_more").format(len(diff_params) - max_items), font=ctk.CTkFont(size=10, slant="italic"), text_color=TEXT_DIM).pack(anchor="w", padx=10, pady=(5, 0))
 
-        # Pedimos a la app que renderice todo en background para saber qué espacio pide
-        self.tooltip_content.update_idletasks()
+        self.tooltip_frame.update_idletasks()
 
-        # Calculamos Ancho y Alto 100% dinámico + Padding (15px * 2)
         tw = self.tooltip_content.winfo_reqwidth() + 30
         th = self.tooltip_content.winfo_reqheight() + 30
 
         app_w = self.winfo_width()
         app_h = self.winfo_height()
 
-        # Si por algún motivo el ancho es desproporcionado, lo limitamos y forzamos
         if tw > app_w - 40: tw = app_w - 40
         if tw < 320: tw = 320 
 
@@ -440,18 +437,15 @@ class U1SlicerApp(BaseWindow):
         b_w = btn.winfo_width()
         b_h = btn.winfo_height()
 
-        # Centrado ideal (Sale por Arriba)
         x = b_x + (b_w // 2) - (tw // 2)
         y_top = b_y - th - 10
         y_bottom = b_y + b_h + 10
 
-        # Anti-Colisión Horizontal (Para que no se corte por los lados)
         if x < 10: 
             x = 10
         elif x + tw > app_w - 10: 
             x = app_w - tw - 10
 
-        # Anti-Colisión Vertical (Para que no se corte por arriba/abajo)
         if y_top < 10: 
             y = y_bottom
             if y + th > app_h - 10: 
@@ -483,7 +477,9 @@ class U1SlicerApp(BaseWindow):
         modal.title(self.T("batch_params_title"))
         modal.geometry("900x650")
         modal.configure(fg_color=BG_ROOT)
-        modal.focus()
+        modal.transient(self) # Modal verdadero
+        modal.grab_set()
+        modal.focus_force()
 
         lbl_title = ctk.CTkLabel(modal, text=self.T("batch_params_title"), font=ctk.CTkFont(size=18, weight="bold"), text_color=TEXT_MAIN)
         lbl_title.pack(pady=(20, 10))
@@ -543,9 +539,8 @@ class U1SlicerApp(BaseWindow):
         self.grid_columnconfigure(0, weight=45, uniform="cols")
         self.grid_columnconfigure(1, weight=55, uniform="cols")
 
-        # Frame simple sin pack_propagate(False) forzado para adaptarse al contenido
         self.tooltip_frame = ctk.CTkFrame(self, fg_color=BG_SURFACE, border_width=2, border_color=ACCENT_TEAL, corner_radius=15)
-        self.tooltip_frame.pack_propagate(False) # Lo mantenemos pero ajustando height y width en runtime
+        self.tooltip_frame.pack_propagate(False) 
         self.tooltip_content = ctk.CTkFrame(self.tooltip_frame, fg_color="transparent")
         self.tooltip_content.pack(fill="both", expand=True, padx=15, pady=15)
 
@@ -782,7 +777,13 @@ class U1SlicerApp(BaseWindow):
                         for cat, keys_list in CONVERTER_PARAMS.items():
                             for k in keys_list:
                                 if k in cfg:
-                                    f_data_detected[cat][k] = self.format_val(cfg[k])
+                                    val = cfg[k]
+                                    if isinstance(val, list):
+                                        if len(val) > 0 and all(x == val[0] for x in val): val = self.format_val(val[0])
+                                        else: val = f"[{', '.join(str(x) for x in val)}]"
+                                    else:
+                                        val = self.format_val(val)
+                                    f_data_detected[cat][k] = val
                                 
                 for f in fils:
                     if f['type'] not in self.tipos_disponibles:
