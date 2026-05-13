@@ -1,10 +1,12 @@
 import os
 import sys
-# Solución para el error de CustomTkinter al usar --windowed
+
+# --- SOLUCIÓN PARA ERROR DE CUSTOMTKINTER AL USAR --windowed EN WINDOWS ---
 if sys.stdout is None:
     sys.stdout = open(os.devnull, "w")
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w")
+
 import customtkinter as ctk
 from tkinter import filedialog
 import zipfile
@@ -16,9 +18,6 @@ import re
 import xml.etree.ElementTree as ET
 import posixpath
 import subprocess
-import sys
-
-# Core 3MF parsing logic inspired by bl2u1 by Josua.
 
 # --- GESTIÓN DE RUTAS PARA PYINSTALLER ---
 def resource_path(relative_path):
@@ -44,7 +43,7 @@ except ImportError:
 
 # --- CONFIGURACIÓN DE VERSIÓN Y APP ---
 APP_NAME = "DOC U1 Link"
-APP_VERSION = "v1.0.0"
+APP_VERSION = "v1.0.1"
 GITHUB_URL = "https://github.com/Dakros66/DOC-U1-Link"
 
 # --- CONSTANTES DEL MOTOR ---
@@ -129,6 +128,7 @@ CONVERTER_PARAMS = {
 LANG_MAP = {"English": "en", "Español": "es"}
 INV_LANG_MAP = {v: k for k, v in LANG_MAP.items()}
 
+# --- CLASE BASE DE VENTANA (CON FIX PARA MACOS/TCL) ---
 if DND_SUPPORT:
     class BaseWindow(ctk.CTk, TkinterDnD.DnDWrapper):
         def __init__(self, *args, **kwargs):
@@ -165,7 +165,8 @@ class U1SlicerApp(BaseWindow):
         if PIL_SUPPORT and os.path.exists(resource_path(GIF_FILENAME)):
             self.cargar_gif()
 
-        if self._dnd_active:
+        # Validación del nuevo flag para evitar crasheos en macOS
+        if getattr(self, '_dnd_active', False):
             self.drop_target_register(DND_FILES)
             self.dnd_bind('<<Drop>>', self.al_soltar_archivo)
 
@@ -389,10 +390,10 @@ class U1SlicerApp(BaseWindow):
             self.after(500, lambda: self.abrir_en_slicer(p))
 
     def abrir_en_slicer(self, p):
-        sys = platform.system()
+        sys_os = platform.system()
         try:
-            if sys == "Darwin": subprocess.call(["open", "-a", "Snapmaker Orca", p])
-            elif sys == "Windows": os.startfile(p)
+            if sys_os == "Darwin": subprocess.call(["open", "-a", "Snapmaker Orca", p])
+            elif sys_os == "Windows": os.startfile(p)
             else: subprocess.call(["xdg-open", p])
         except: pass
 
@@ -437,13 +438,39 @@ class U1SlicerApp(BaseWindow):
 
                 for item in zin.infolist():
                     name = posixpath.normpath(item.filename).lstrip('/')
-                    if name == 'Metadata/project_settings.config': zout.writestr(item, json.dumps(comb, indent=4))
+                    
+                    if name == 'Metadata/project_settings.config':
+                        zout.writestr(item, json.dumps(comb, indent=4))
+                        
                     elif name == 'Metadata/slice_info.config':
                         xml = zin.read(item.filename).decode('utf-8','ignore')
                         zout.writestr(item, re.sub(r'key="printer_model_id" value="[^"]*"', 'key="printer_model_id" value="Snapmaker U1"', xml).encode('utf-8'))
-                    else: zout.writestr(item, zin.read(item.filename))
+                        
+                    # --- NUEVA LÓGICA DE INTERCEPCIÓN ---
+                    elif name.startswith('3D/') and name.endswith('.model'):
+                        xml_model = zin.read(item.filename).decode('utf-8', 'ignore')
+                        
+                        # Traducción del Namespace principal
+                        xml_model = xml_model.replace('xmlns:BambuStudio=', 'xmlns:slic3r=')
+                        
+                        # Traducción de los Metadatos embebidos en el atributo 'name'
+                        xml_model = xml_model.replace('name="BambuStudio:', 'name="slic3r:')
+                        
+                        # Traducción de posibles etiquetas directas 
+                        xml_model = xml_model.replace('<BambuStudio:', '<slic3r:')
+                        xml_model = xml_model.replace('</BambuStudio:', '</slic3r:')
+                        
+                        # Traducción de atributos inline adicionales
+                        xml_model = xml_model.replace(' BambuStudio:', ' slic3r:')
+                        
+                        zout.writestr(item, xml_model.encode('utf-8'))
+                        
+                    else:
+                        zout.writestr(item, zin.read(item.filename))
             return True
-        except Exception as e: self.mostrar_mensaje(f"❌ Error: {e}", COLOR_ERROR); return False
+        except Exception as e:
+            self.mostrar_mensaje(f"❌ Error: {e}", COLOR_ERROR)
+            return False
 
 if __name__ == "__main__":
     app = U1SlicerApp()
