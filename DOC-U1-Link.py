@@ -6,7 +6,7 @@ if sys.stdout is None:
     sys.stdout = open(os.devnull, "w")
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w")
-    
+
 import io
 import threading
 import urllib.request
@@ -49,7 +49,7 @@ except ImportError:
 
 # --- CONFIGURACIÓN DE VERSIÓN Y APP ---
 APP_NAME = "DOC U1 Link"
-APP_VERSION = "v1.1.0"
+APP_VERSION = "v1.1.1"
 GITHUB_URL = "https://github.com/Dakros66/DOC-U1-Link"
 GITHUB_API_URL = "https://api.github.com/repos/Dakros66/DOC-U1-Link/releases/latest"
 
@@ -321,9 +321,17 @@ class U1SlicerApp(BaseWindow):
     def format_val(self, val):
         if isinstance(val, list):
             if len(val) > 0 and all(x == val[0] for x in val):
-                return str(val[0])
-            return f"[{', '.join(str(x) for x in val)}]"
-        return str(val)
+                res = str(val[0])
+            else:
+                res = f"[{', '.join(str(x) for x in val)}]"
+        else:
+            res = str(val)
+            
+        # Truncado automático si la cadena ocupa más de 45 caracteres 
+        # (Para evitar que la ventana se desborde infinitamente)
+        if len(res) > 45:
+            res = res[:42] + "..."
+        return res
 
     def normalize_color(self, color):
         if not color: return '#000000'
@@ -359,7 +367,7 @@ class U1SlicerApp(BaseWindow):
             fil_dict['color'] = nuevo_color.upper()
             btn_widget.configure(fg_color=nuevo_color, hover_color=nuevo_color)
 
-    # --- LÓGICA DEL TOOLTIP MATEMÁTICO ANTI-CORTES ---
+    # --- LÓGICA DEL TOOLTIP DINÁMICO AUTO-CALCULABLE ---
     def schedule_tooltip(self, btn, key):
         self.cancel_hide_tooltip()
         if self._active_tooltip_key == key: return
@@ -410,38 +418,47 @@ class U1SlicerApp(BaseWindow):
             if len(diff_params) > max_items:
                 ctk.CTkLabel(self.tooltip_content, text=self.T("tt_more").format(len(diff_params) - max_items), font=ctk.CTkFont(size=10, slant="italic"), text_color=TEXT_DIM).pack(anchor="w", padx=10, pady=(5, 0))
 
-        # Pedirle a tkinter que renderice la caja en background para saber qué tamaño ha ocupado TODO el texto
-        self.tooltip_frame.update_idletasks()
+        # Pedimos a la app que renderice todo en background para saber qué espacio pide
+        self.tooltip_content.update_idletasks()
 
-        # Medidas Reales Renderizadas Orgánicamente
-        tw = self.tooltip_frame.winfo_reqwidth()
-        th = self.tooltip_frame.winfo_reqheight()
+        # Calculamos Ancho y Alto 100% dinámico + Padding (15px * 2)
+        tw = self.tooltip_content.winfo_reqwidth() + 30
+        th = self.tooltip_content.winfo_reqheight() + 30
 
         app_w = self.winfo_width()
         app_h = self.winfo_height()
 
-        # Coordenadas Absolutas del Botón
+        # Si por algún motivo el ancho es desproporcionado, lo limitamos y forzamos
+        if tw > app_w - 40: tw = app_w - 40
+        if tw < 320: tw = 320 
+
+        self.tooltip_frame.configure(width=tw, height=th)
+        self.tooltip_frame.update_idletasks()
+
         b_x = btn.winfo_rootx() - self.winfo_rootx()
         b_y = btn.winfo_rooty() - self.winfo_rooty()
         b_w = btn.winfo_width()
         b_h = btn.winfo_height()
 
-        # Intento Normal: Centrado Arriba
+        # Centrado ideal (Sale por Arriba)
         x = b_x + (b_w // 2) - (tw // 2)
-        y = b_y - th - 10
+        y_top = b_y - th - 10
+        y_bottom = b_y + b_h + 10
 
-        # Anti-Colisión Horizontal
+        # Anti-Colisión Horizontal (Para que no se corte por los lados)
         if x < 10: 
             x = 10
         elif x + tw > app_w - 10: 
             x = app_w - tw - 10
 
-        # Anti-Colisión Vertical
-        if y < 10: 
-            y = b_y + b_h + 10 # Se saldría por arriba, lo empujamos abajo
+        # Anti-Colisión Vertical (Para que no se corte por arriba/abajo)
+        if y_top < 10: 
+            y = y_bottom
             if y + th > app_h - 10: 
-                y = app_h - th - 10 # Es enorme y se sale por abajo también, lo anclamos al fondo
-                
+                y = app_h - th - 10 
+        else:
+            y = y_top
+
         self.tooltip_frame.place(x=x, y=y)
         self.tooltip_frame.lift()
 
@@ -526,10 +543,11 @@ class U1SlicerApp(BaseWindow):
         self.grid_columnconfigure(0, weight=45, uniform="cols")
         self.grid_columnconfigure(1, weight=55, uniform="cols")
 
-        # --- FRAME DEL TOOLTIP DINÁMICO (Sin tamaños fijos) ---
+        # Frame simple sin pack_propagate(False) forzado para adaptarse al contenido
         self.tooltip_frame = ctk.CTkFrame(self, fg_color=BG_SURFACE, border_width=2, border_color=ACCENT_TEAL, corner_radius=15)
+        self.tooltip_frame.pack_propagate(False) # Lo mantenemos pero ajustando height y width en runtime
         self.tooltip_content = ctk.CTkFrame(self.tooltip_frame, fg_color="transparent")
-        self.tooltip_content.pack(fill="both", expand=True, padx=10, pady=10)
+        self.tooltip_content.pack(fill="both", expand=True, padx=15, pady=15)
 
         self.tooltip_frame.bind("<Enter>", self.cancel_hide_tooltip)
         self.tooltip_frame.bind("<Leave>", self.hide_tooltip)
@@ -562,7 +580,6 @@ class U1SlicerApp(BaseWindow):
         self.info_card = ctk.CTkFrame(self.left_p, fg_color=BG_SURFACE, corner_radius=20, border_width=1, border_color=BORDER_COLOR)
         self.lbl_file = ctk.CTkLabel(self.info_card, text="", font=ctk.CTkFont(size=15, weight="bold"), text_color=ACCENT_TEAL, wraplength=300)
         
-        # Color sólido para habilitar Scroll
         self.batch_scroll = ctk.CTkScrollableFrame(self.info_card, fg_color=BG_SURFACE, scrollbar_button_color=BORDER_COLOR, scrollbar_button_hover_color=TEXT_DIM)
 
         # --- COLUMNA DERECHA ---
@@ -765,13 +782,7 @@ class U1SlicerApp(BaseWindow):
                         for cat, keys_list in CONVERTER_PARAMS.items():
                             for k in keys_list:
                                 if k in cfg:
-                                    val = cfg[k]
-                                    if isinstance(val, list):
-                                        if len(val) > 0 and all(x == val[0] for x in val): val = self.format_val(val[0])
-                                        else: val = f"[{', '.join(str(x) for x in val)}]"
-                                    else:
-                                        val = self.format_val(val)
-                                    f_data_detected[cat][k] = val
+                                    f_data_detected[cat][k] = self.format_val(cfg[k])
                                 
                 for f in fils:
                     if f['type'] not in self.tipos_disponibles:
